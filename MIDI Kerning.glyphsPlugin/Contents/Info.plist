@@ -17,7 +17,7 @@
 	<key>CFBundleVersion</key>
 	<string>0.1</string> <!-- 123 -->
 	<key>UpdateFeedURL</key>
-	<string>https://raw.githubusercontent.com/georgeyjm/midi-kerning/master/MIDI%20Kerning.glyphsPlugin/Contents/Info.plist</string>
+	<string>https://raw.githubusercontent.com/georgeyjm/midi-kerning/main/MIDI%20Kerning.glyphsPlugin/Contents/Info.plist</string>
 	<key>productPageURL</key>
 	<string>https://github.com/georgeyjm/midi-kerning</string>
 	<key>productReleaseNotes</key>
