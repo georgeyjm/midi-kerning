@@ -7,21 +7,21 @@
 	<key>CFBundleExecutable</key>
 	<string>plugin</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.____Developer____.____PluginClassName____</string>
+	<string>com.georgeyu.MidiKerning</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>MIDI Kerning</string>
 	<key>CFBundleShortVersionString</key>
-	<string>____BundleVersionString____</string> <!-- 1.0 -->
+	<string>0.1</string> <!-- 1.0 -->
 	<key>CFBundleVersion</key>
-	<string>____BundleVersion____</string> <!-- 123 -->
+	<string>0.1</string> <!-- 123 -->
 	<key>UpdateFeedURL</key>
-	<string>____OnlineUrlToThisPlist____</string>
+	<string>https://raw.githubusercontent.com/georgeyjm/midi-kerning/master/MIDI%20Kerning.glyphsPlugin/Contents/Info.plist</string>
 	<key>productPageURL</key>
-	<string>____ProductPageURL____</string>
+	<string>https://github.com/georgeyjm/midi-kerning</string>
 	<key>productReleaseNotes</key>
-	<string>____LatestReleaseNotes____</string>
+	<string>Some great updates</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright, Jiaming (George) Yu, 2022</string>
 	<key>NSPrincipalClass</key>
