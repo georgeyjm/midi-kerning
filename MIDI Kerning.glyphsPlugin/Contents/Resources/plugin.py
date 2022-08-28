@@ -1,5 +1,7 @@
-import objc
+from time import sleep
+from threading import Thread
 
+import objc
 from GlyphsApp import *
 from GlyphsApp.plugins import *
 
@@ -23,8 +25,18 @@ class MidiKerning(GeneralPlugin):
 
     @objc.python_method
     def start(self):
-        newMenuItem = NSMenuItem(self.name, self.updateKerning_)
-        Glyphs.menu[GLYPH_MENU].append(newMenuItem)
+        self.thread = Thread(target=self.listenThread)
+        self.thread.daemon = True
+        self.thread.start()
+    
+    
+    def listenThread(self):
+        while True:
+            sleep(3)
+
+            for i in range(20):
+                self.updateKerning_(1)
+                sleep(0.02)
 
     
     def getAdjacentGlyphs(self, direction='right'):
@@ -50,12 +62,19 @@ class MidiKerning(GeneralPlugin):
             return adjacent_layer.parent, active_layer.parent
 
 
-    def updateKerning_(self, _):
+    def updateKerning_(self, diff):
         font = Glyphs.font
         if len(font.selectedLayers) != 1:
             return
 
         active_glyph, next_glyph = self.getAdjacentGlyphs()
         curr_kerning = font.kerningForPair(font.selectedFontMaster.id, active_glyph.name, next_glyph.name)
+        if curr_kerning is None:
+            curr_kerning = 0
+        new_kerning = curr_kerning + diff
 
-        Glyphs.showNotification('Test', active_glyph.name + next_glyph.name + str(curr_kerning)) # .string, .id, .name
+        # Glyphs.showNotification('Test', active_glyph.name + next_glyph.name + str(curr_kerning)) # .string, .id, .name
+        
+        # active_glyph.beginUndo()
+        font.setKerningForPair(font.selectedFontMaster.id, active_glyph.name, next_glyph.name, new_kerning)
+        # active_glyph.endUndo()
