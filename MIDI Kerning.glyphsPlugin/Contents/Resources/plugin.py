@@ -38,6 +38,9 @@ class MidiKerning(GeneralPlugin):
         assert self.device_name in mido.get_input_names()
         self.cc = 23
 
+        self.listening = False
+        self.change = 0
+
         self.cached_kernings = {}
         self.glyphs = [None, None]
         Glyphs.addCallback(self.updateAdjacentGlyphs_, UPDATEINTERFACE)
@@ -45,10 +48,6 @@ class MidiKerning(GeneralPlugin):
         self.thread = Thread(target=self.listenThread)
         self.thread.daemon = True
         self.thread.start()
-
-        # Glyphs.showNotification('Test', str(sys.path[::-1]))
-
-        print('Started')
     
     
     def listenThread(self):
@@ -57,7 +56,21 @@ class MidiKerning(GeneralPlugin):
             for msg in inport:
                 if msg.type != 'control_change' or msg.control != self.cc:
                     continue
-                self.updateKerning_(sign(64 - msg.value))
+                self.change += sign(64 - msg.value)
+                if not self.listening:
+                    self.listening = True
+                    update_thread = Thread(target=self.updateThread)
+                    update_thread.daemon = True
+                    update_thread.start()
+    
+    
+    def updateThread(self):
+        time.sleep(0.01)
+        change = self.change
+        self.change = 0
+        self.updateKerning_(change)
+        self.listening = False
+        return
 
     
     def updateAdjacentGlyphs_(self, _, direction='right'):
@@ -88,14 +101,9 @@ class MidiKerning(GeneralPlugin):
 
 
     def updateKerning_(self, diff):
-        start = time.time()
-
-        start1 = time.time()
         if len(Glyphs.font.selectedLayers) != 1:
             return
-        end1 = time.time()
 
-        start3 = time.time()
         cache_key = '_'.join(self.glyphs)
         cached = self.cached_kernings.get(cache_key, None)
         now = time.time()
@@ -107,13 +115,9 @@ class MidiKerning(GeneralPlugin):
             current_kerning = cached['val']
         new_kerning = current_kerning + diff
         self.cached_kernings[cache_key] = {'ts': now, 'val': new_kerning}
-        end3 = time.time()
-        start4 = time.time()
+
         # active_glyph.beginUndo()
         Glyphs.font.setKerningForPair(Glyphs.font.selectedFontMaster.id, *self.glyphs, new_kerning)
         # active_glyph.endUndo()
-        end4 = time.time()
 
-        end = time.time()
-
-        Glyphs.showNotification('Test', f'{end1-start1}, {end3-start3}, {end4-start4}, {end-start}') # .string, .id, .name
+        # Glyphs.showNotification('Test', f'{end1-start1}, {end3-start3}, {end4-start4}, {end-start}') # .string, .id, .name
