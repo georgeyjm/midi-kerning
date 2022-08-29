@@ -34,6 +34,7 @@ class MidiKerning(GeneralPlugin):
 
     @objc.python_method
     def start(self):
+        self.direction = 'left'
         self.device_name = 'MPK mini 3'
         assert self.device_name in mido.get_input_names()
         self.cc = 23
@@ -73,12 +74,11 @@ class MidiKerning(GeneralPlugin):
         return
 
     
-    def updateAdjacentGlyphs_(self, _, direction='right'):
+    def updateAdjacentGlyphs_(self, _):
         '''Returns either the previous and current glyphs,
         or the current and next glyphs, depending on the direction.'''
 
-        assert direction in ('left', 'right')
-        increment = 1 if direction == 'right' else -1
+        increment = 1 if self.direction == 'right' else -1
 
         # Method 1
         # View = Glyphs.currentDocument.windowController().activeEditViewController().graphicView()
@@ -93,7 +93,7 @@ class MidiKerning(GeneralPlugin):
         adjacent_layer = curr_tab.layers[curr_tab.layersCursor + increment]
         
         # Return final result
-        if direction == 'right':
+        if self.direction == 'right':
             self.glyphs = active_layer.parent.name, adjacent_layer.parent.name
         else:
             self.glyphs = adjacent_layer.parent.name, active_layer.parent.name
@@ -116,8 +116,4 @@ class MidiKerning(GeneralPlugin):
         new_kerning = current_kerning + diff
         self.cached_kernings[cache_key] = {'ts': now, 'val': new_kerning}
 
-        # active_glyph.beginUndo()
         Glyphs.font.setKerningForPair(Glyphs.font.selectedFontMaster.id, *self.glyphs, new_kerning)
-        # active_glyph.endUndo()
-
-        # Glyphs.showNotification('Test', f'{end1-start1}, {end3-start3}, {end4-start4}, {end-start}') # .string, .id, .name
