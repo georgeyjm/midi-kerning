@@ -34,7 +34,7 @@ class MidiKerning(GeneralPlugin):
 
     @objc.python_method
     def start(self):
-        self.direction = 'left'
+        self.direction = 'right'
         self.device_name = 'MPK mini 3'
         assert self.device_name in mido.get_input_names()
         self.cc = 23
@@ -89,8 +89,13 @@ class MidiKerning(GeneralPlugin):
         curr_tab = Glyphs.font.currentTab
         if curr_tab is None:
             return
-        active_layer = curr_tab.layers[curr_tab.layersCursor]
-        adjacent_layer = curr_tab.layers[curr_tab.layersCursor + increment]
+        cursor = curr_tab.layersCursor
+        if (cursor == 0 and self.direction == 'left') or (cursor == len(curr_tab.layers) - 1 and self.direction == 'right'):
+            return
+        active_layer = curr_tab.layers[cursor]
+        adjacent_layer = curr_tab.layers[cursor + increment]
+        if adjacent_layer.parent.name is None:
+            return
         
         # Return final result
         if self.direction == 'right':
@@ -100,8 +105,10 @@ class MidiKerning(GeneralPlugin):
         return
 
 
-    def updateKerning_(self, diff):
+    def updateKerning_(self, diff, round_to=1):
         if len(Glyphs.font.selectedLayers) != 1:
+            return
+        if not all(self.glyphs):
             return
 
         cache_key = '_'.join(self.glyphs)
@@ -114,6 +121,9 @@ class MidiKerning(GeneralPlugin):
         else:
             current_kerning = cached['val']
         new_kerning = current_kerning + diff
+        if round_to != 1:
+            # TODO: optimize rounding mechanism
+            new_kerning = round_to * round(new_kerning / round_to)
         self.cached_kernings[cache_key] = {'ts': now, 'val': new_kerning}
 
         Glyphs.font.setKerningForPair(Glyphs.font.selectedFontMaster.id, *self.glyphs, new_kerning)
