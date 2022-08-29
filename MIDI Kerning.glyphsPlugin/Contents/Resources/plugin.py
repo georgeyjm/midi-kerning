@@ -38,6 +38,10 @@ class MidiKerning(GeneralPlugin):
         assert self.device_name in mido.get_input_names()
         self.cc = 23
 
+        self.cached_kernings = {}
+        self.glyphs = [None, None]
+        Glyphs.addCallback(self.updateAdjacentGlyphs_, UPDATEINTERFACE)
+
         self.thread = Thread(target=self.listenThread)
         self.thread.daemon = True
         self.thread.start()
@@ -51,14 +55,12 @@ class MidiKerning(GeneralPlugin):
         sign = lambda n: 1 if n > 0 else (-1 if n < 0 else 0)
         with mido.open_input(self.device_name) as inport:
             for msg in inport:
-                if msg.type != 'control_change':
-                    continue
-                if msg.control != self.cc:
+                if msg.type != 'control_change' or msg.control != self.cc:
                     continue
                 self.updateKerning_(sign(64 - msg.value))
 
     
-    def getAdjacentGlyphs(self, direction='right'):
+    def updateAdjacentGlyphs_(self, _, direction='right'):
         '''Returns either the previous and current glyphs,
         or the current and next glyphs, depending on the direction.'''
 
@@ -72,35 +74,46 @@ class MidiKerning(GeneralPlugin):
     
         # Method 2
         curr_tab = Glyphs.font.currentTab
+        if curr_tab is None:
+            return
         active_layer = curr_tab.layers[curr_tab.layersCursor]
         adjacent_layer = curr_tab.layers[curr_tab.layersCursor + increment]
         
         # Return final result
         if direction == 'right':
-            return active_layer.parent, adjacent_layer.parent
+            self.glyphs = active_layer.parent.name, adjacent_layer.parent.name
         else:
-            return adjacent_layer.parent, active_layer.parent
+            self.glyphs = adjacent_layer.parent.name, active_layer.parent.name
+        return
 
 
     def updateKerning_(self, diff):
+        start = time.time()
+
         start1 = time.time()
-        font = Glyphs.font
-        if len(font.selectedLayers) != 1:
+        if len(Glyphs.font.selectedLayers) != 1:
             return
         end1 = time.time()
 
-        start2 = time.time()
-        active_glyph, next_glyph = self.getAdjacentGlyphs()
-        end2 = time.time()
         start3 = time.time()
-        curr_kerning = font.kerningForPair(font.selectedFontMaster.id, active_glyph.name, next_glyph.name)
+        cache_key = '_'.join(self.glyphs)
+        cached = self.cached_kernings.get(cache_key, None)
+        now = time.time()
+        if cached is None or cached['ts'] - now > 2:
+            current_kerning = Glyphs.font.kerningForPair(Glyphs.font.selectedFontMaster.id, *self.glyphs)
+            if current_kerning is None:
+                current_kerning = 0
+        else:
+            current_kerning = cached['val']
+        new_kerning = current_kerning + diff
+        self.cached_kernings[cache_key] = {'ts': now, 'val': new_kerning}
         end3 = time.time()
-        if curr_kerning is None:
-            curr_kerning = 0
         start4 = time.time()
         # active_glyph.beginUndo()
-        font.setKerningForPair(font.selectedFontMaster.id, active_glyph.name, next_glyph.name, curr_kerning + diff)
+        Glyphs.font.setKerningForPair(Glyphs.font.selectedFontMaster.id, *self.glyphs, new_kerning)
         # active_glyph.endUndo()
         end4 = time.time()
 
-        Glyphs.showNotification('Test', f'{end1-start1}, {end2-start2}, {end3-start3}, {end4-start4}') # .string, .id, .name
+        end = time.time()
+
+        Glyphs.showNotification('Test', f'{end1-start1}, {end3-start3}, {end4-start4}, {end-start}') # .string, .id, .name
