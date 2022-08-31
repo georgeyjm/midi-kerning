@@ -147,7 +147,7 @@ class MidiKerning(GeneralPlugin):
         # Reason for caching: Glyphs.font.kerningForPair method takes a very long time,
         # so we don't want to call it for updates really close together
         # (we are assuming that people will not be able to change the kerning manually
-        # within a certain time frame, e.g. 1 second)
+        # within a short time frame, e.g. 2 seconds)
         master_id = Glyphs.font.selectedFontMaster.id
         cache_key = master_id + '_' + '_'.join(glyphs)
         cached = data['cached'].get(cache_key, None)
