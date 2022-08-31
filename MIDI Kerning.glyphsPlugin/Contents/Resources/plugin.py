@@ -1,5 +1,6 @@
 import sys
 import time
+import copy
 from threading import Thread
 
 # Temporary fix
@@ -34,16 +35,27 @@ class MidiKerning(GeneralPlugin):
 
     @objc.python_method
     def start(self):
-        self.direction = 'right'
+        # Initialize MIDI device and ports
         self.device_name = 'MPK mini 3'
+        self.knobs = {
+            22: 'left',
+            23: 'right',
+        }
         assert self.device_name in mido.get_input_names()
-        self.cc = 23
 
-        self.listening = False
-        self.change = 0
-
-        self.cached_kernings = {}
-        self.glyphs = [None, None]
+        # Initialize kerning data
+        self.glyphs = (None, None, None) # The active glyph along with two adjacent glyphs
+        self.data = {
+            'left': {
+                'direction': 'left',
+                'listening': False,
+                'change': 0,
+                'cached': {},
+            }
+        }
+        self.data['right'] = copy.copy(self.data['left'])
+        self.data['right'].update({'direction': 'right'})
+        
         Glyphs.addCallback(self.updateAdjacentGlyphs_, UPDATEINTERFACE)
 
         self.thread = Thread(target=self.listenThread)
@@ -55,30 +67,29 @@ class MidiKerning(GeneralPlugin):
         sign = lambda n: 1 if n > 0 else (-1 if n < 0 else 0)
         with mido.open_input(self.device_name) as inport:
             for msg in inport:
-                if msg.type != 'control_change' or msg.control != self.cc:
+                if msg.type != 'control_change' or msg.control not in self.knobs:
                     continue
-                self.change += sign(64 - msg.value)
-                if not self.listening:
-                    self.listening = True
-                    update_thread = Thread(target=self.updateThread)
+                data = self.data[self.knobs[msg.control]]
+                data['change'] += sign(64 - msg.value)
+                if not data['listening']:
+                    data['listening'] = True
+                    update_thread = Thread(target=self.updateThread_, args=(data,))
                     update_thread.daemon = True
                     update_thread.start()
     
     
-    def updateThread(self):
-        time.sleep(0.01)
-        change = self.change
-        self.change = 0
-        self.updateKerning_(change)
-        self.listening = False
+    def updateThread_(self, data):
+        time.sleep(0.02)
+        change = data['change']
+        data['change'] = 0
+        data['listening'] = False
+        self.updateKerning__(change, data)
         return
 
     
     def updateAdjacentGlyphs_(self, _):
         '''Returns either the previous and current glyphs,
         or the current and next glyphs, depending on the direction.'''
-
-        increment = 1 if self.direction == 'right' else -1
 
         # Method 1
         # View = Glyphs.currentDocument.windowController().activeEditViewController().graphicView()
@@ -90,32 +101,32 @@ class MidiKerning(GeneralPlugin):
         if curr_tab is None:
             return
         cursor = curr_tab.layersCursor
-        if (cursor == 0 and self.direction == 'left') or (cursor == len(curr_tab.layers) - 1 and self.direction == 'right'):
-            return
-        active_layer = curr_tab.layers[cursor]
-        adjacent_layer = curr_tab.layers[cursor + increment]
-        if adjacent_layer.parent.name is None:
-            return
-        
-        # Return final result
-        if self.direction == 'right':
-            self.glyphs = active_layer.parent.name, adjacent_layer.parent.name
+
+        self.glyphs[1] = curr_tab.layers[cursor].parent.name
+        if cursor == 0:
+            self.glyphs[0] = None
         else:
-            self.glyphs = adjacent_layer.parent.name, active_layer.parent.name
+            self.glyphs[0] = curr_tab.layers[cursor - 1].parent.name
+        if cursor == len(curr_tab.layers) - 1:
+            self.glyphs[2] = None
+        else:
+            self.glyphs[2] = curr_tab.layers[cursor + 1].parent.name
+        
+        # print(self.glyphs)
         return
 
 
-    def updateKerning_(self, diff, round_to=1):
-        if len(Glyphs.font.selectedLayers) != 1:
-            return
-        if not all(self.glyphs):
-            return
-
-        cache_key = '_'.join(self.glyphs)
-        cached = self.cached_kernings.get(cache_key, None)
+    def updateKerning__(self, diff, data, round_to=1):
+        if data['direction'] == 'left':
+            glyphs = self.glyphs[:2]
+        else:
+            glyphs = self.glyphs[1:]
+        master_id = Glyphs.font.selectedFontMaster.id
+        cache_key = master_id + '_' + '_'.join(glyphs)
+        cached = data['cached'].get(cache_key, None)
         now = time.time()
         if cached is None or cached['ts'] - now > 2:
-            current_kerning = Glyphs.font.kerningForPair(Glyphs.font.selectedFontMaster.id, *self.glyphs)
+            current_kerning = Glyphs.font.kerningForPair(master_id, *glyphs)
             if current_kerning is None:
                 current_kerning = 0
         else:
@@ -124,6 +135,6 @@ class MidiKerning(GeneralPlugin):
         if round_to != 1:
             # TODO: optimize rounding mechanism
             new_kerning = round_to * round(new_kerning / round_to)
-        self.cached_kernings[cache_key] = {'ts': now, 'val': new_kerning}
+        data['cached'][cache_key] = {'ts': now, 'val': new_kerning}
 
-        Glyphs.font.setKerningForPair(Glyphs.font.selectedFontMaster.id, *self.glyphs, new_kerning)
+        Glyphs.font.setKerningForPair(master_id, *glyphs, new_kerning)
