@@ -56,14 +56,17 @@ class MidiKerning(GeneralPlugin):
         self.data['right'] = copy.copy(self.data['left'])
         self.data['right'].update({'direction': 'right'})
         
+        # Listen and update threads
         Glyphs.addCallback(self.updateAdjacentGlyphs_, UPDATEINTERFACE)
-
         self.thread = Thread(target=self.listenThread)
         self.thread.daemon = True
         self.thread.start()
     
     
     def listenThread(self):
+        '''Continuously listens for MIDI input and calls update
+        when appropriate.'''
+
         sign = lambda n: 1 if n > 0 else (-1 if n < 0 else 0)
         with mido.open_input(self.device_name) as inport:
             for msg in inport:
@@ -79,6 +82,9 @@ class MidiKerning(GeneralPlugin):
     
     
     def updateThread_(self, data):
+        '''Collects all updates within a certain time frame and then
+        bulk updates the kerning value.'''
+
         time.sleep(0.02)
         change = data['change']
         data['change'] = 0
@@ -117,6 +123,8 @@ class MidiKerning(GeneralPlugin):
 
 
     def updateKerning__(self, diff, data, round_to=1):
+        '''Increments character pair kerning by diff, with optional rounding.'''
+
         # Get glyphs of interest
         if data['direction'] == 'left':
             glyphs = self.glyphs[:2]
@@ -125,22 +133,26 @@ class MidiKerning(GeneralPlugin):
 
         # Try to get cached kerning value
         # Reason for caching: Glyphs.font.kerningForPair method takes a very long time,
-        # so we want to only
+        # so we don't want to call it for updates really close together
+        # (we are assuming that people will not be able to change the kerning manually
+        # within a certain time frame, e.g. 1 second)
         master_id = Glyphs.font.selectedFontMaster.id
         cache_key = master_id + '_' + '_'.join(glyphs)
         cached = data['cached'].get(cache_key, None)
         now = time.time()
         if cached is None or now - cached['ts'] > 2:
-            print('Get')
             current_kerning = Glyphs.font.kerningForPair(master_id, *glyphs)
             if current_kerning is None:
                 current_kerning = 0
         else:
             current_kerning = cached['val']
         new_kerning = current_kerning + diff
+
+        # Perform rounding
         if round_to != 1:
             # TODO: optimize rounding mechanism
             new_kerning = round_to * round(new_kerning / round_to)
+        
+        # Update kerning
         data['cached'][cache_key] = {'ts': now, 'val': new_kerning}
-
         Glyphs.font.setKerningForPair(master_id, *glyphs, new_kerning)
