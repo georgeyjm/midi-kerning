@@ -73,6 +73,11 @@ class MidiKerning(GeneralPlugin):
                 if msg.type != 'control_change' or msg.control not in self.knobs:
                     continue
                 data = self.data[self.knobs[msg.control]]
+                # Validation to skip unnecessary updates
+                if (self.glyphs[0] is None and data['direction'] == 'left') or \
+                   (self.glyphs[2] is None and data['direction'] == 'right'):
+                    continue
+
                 data['change'] += sign(64 - msg.value)
                 if not data['listening']:
                     data['listening'] = True
