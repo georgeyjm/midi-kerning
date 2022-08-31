@@ -55,6 +55,7 @@ class MidiKerning(GeneralPlugin):
         }
         self.data['right'] = copy.copy(self.data['left'])
         self.data['right'].update({'direction': 'right'})
+        self.last_update = time.time()
         
         # Listen and update threads
         Glyphs.addCallback(self.updateAdjacentGlyphs_, UPDATEINTERFACE)
@@ -77,7 +78,8 @@ class MidiKerning(GeneralPlugin):
                 if (self.glyphs[0] is None and data['direction'] == 'left') or \
                    (self.glyphs[2] is None and data['direction'] == 'right'):
                     continue
-
+                
+                # If not listening, start update thread to listen for future updates
                 data['change'] += sign(64 - msg.value)
                 if not data['listening']:
                     data['listening'] = True
@@ -97,10 +99,15 @@ class MidiKerning(GeneralPlugin):
         self.updateKerning__(change, data)
         return
 
-    
+
     def updateAdjacentGlyphs_(self, _):
         '''Returns either the previous and current glyphs,
         or the current and next glyphs, depending on the direction.'''
+
+        # Updating kerning also calls this function, hence this is
+        # ignroed to reduce unnecessary computation
+        if time.time() - self.last_update < 0.5:
+            return
 
         # Method 1
         # View = Glyphs.currentDocument.windowController().activeEditViewController().graphicView()
@@ -160,4 +167,5 @@ class MidiKerning(GeneralPlugin):
         
         # Update kerning
         data['cached'][cache_key] = {'ts': now, 'val': new_kerning}
+        self.last_update = now
         Glyphs.font.setKerningForPair(master_id, *glyphs, new_kerning)
