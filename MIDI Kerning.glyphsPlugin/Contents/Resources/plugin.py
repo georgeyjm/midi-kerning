@@ -44,7 +44,7 @@ class MidiKerning(GeneralPlugin):
         assert self.device_name in mido.get_input_names()
 
         # Initialize kerning data
-        self.glyphs = (None, None, None) # The active glyph along with two adjacent glyphs
+        self.glyphs = [None, None, None] # The active glyph along with two adjacent glyphs
         self.data = {
             'left': {
                 'direction': 'left',
@@ -117,15 +117,21 @@ class MidiKerning(GeneralPlugin):
 
 
     def updateKerning__(self, diff, data, round_to=1):
+        # Get glyphs of interest
         if data['direction'] == 'left':
             glyphs = self.glyphs[:2]
         else:
             glyphs = self.glyphs[1:]
+
+        # Try to get cached kerning value
+        # Reason for caching: Glyphs.font.kerningForPair method takes a very long time,
+        # so we want to only
         master_id = Glyphs.font.selectedFontMaster.id
         cache_key = master_id + '_' + '_'.join(glyphs)
         cached = data['cached'].get(cache_key, None)
         now = time.time()
-        if cached is None or cached['ts'] - now > 2:
+        if cached is None or now - cached['ts'] > 2:
+            print('Get')
             current_kerning = Glyphs.font.kerningForPair(master_id, *glyphs)
             if current_kerning is None:
                 current_kerning = 0
